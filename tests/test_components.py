@@ -1,9 +1,9 @@
 import pytest
 
-from components import (Battery, Wire, Resistor, Concentration, Switch, Caster,
+from arcane.components import (Battery, Wire, Resistor, Concentration, Switch, Caster,
                         Blank, Junction, AndGate, OrGate, NotGate, connect)
-from exceptions import CircuitException
-from simulation import step_all, total_energy
+from arcane.exceptions import CircuitException
+from arcane.simulation import step_all, total_energy
 
 
 def run(circuit, n_steps, events=None):

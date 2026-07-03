@@ -1,56 +1,55 @@
 """Convert a connected circuit and its energy history into a manim Scene.
 
-The geometry is not re-invented: trace_layout() replays the existing
-matplotlib plot() walk with recording enabled and reuses the exact line
-segments each component symbol draws. Each component's segments are then
-animated by recolouring/thickening them as its recorded energy rises,
-driven by a single ValueTracker sweeping the time axis.
+Geometry comes from arcane.layout.trace_layout(); colour comes from
+arcane.theme, so an exported video matches the GUI's interactive preview.
+Each component's segments recolour and thicken as its recorded energy
+rises, driven by a single ValueTracker sweeping the time axis.
 
-Requires manim (pip install manim), which is only imported when available
-so the rest of the package works without it. Render the built-in demo with:
+manim is imported lazily so the rest of the package works without it.
+Render the built-in demo from the CLI (needs an editable install so the
+`arcane` package is importable)::
 
-    manim -pql scripts/manim_scene.py DemoScene
+    manim -pql arcane/manim_scene.py DemoScene
 
-or build a scene for your own circuit:
+or build a scene for your own circuit::
 
-    from components import *
-    from simulation import simulate
-    from manim_scene import make_circuit_scene
-
+    from arcane import connect, simulate, make_circuit_scene
     circuit = connect([...])
     t, Es, ET = simulate(circuit, 300)
     MyScene = make_circuit_scene(circuit, Es, run_time=10, name="MyScene")
 
-Known limits: only line segments are converted (patch decorations like the
-NOT gate's inversion circle are skipped), and text labels are not carried
-over.
+Prefer arcane.render.render_circuit() to render to a file with explicit
+fps/quality control. Known limits: only line segments are converted (patch
+decorations like the NOT gate's inversion circle are skipped) and text
+labels are not carried over.
 """
 import numpy as np
-import matplotlib.pyplot as plt
 
-from components import plot as circuit_plot
+from arcane.layout import trace_layout, bbox_center_scale
+from arcane.theme import ENERGY_STOPS, energy_fraction, energy_stroke_width
 
 try:
-    from manim import Scene, VGroup, Line, ValueTracker, interpolate_color, GREY, YELLOW, linear
+    from manim import (Scene, VGroup, Line, ValueTracker, ManimColor,
+                       interpolate_color, linear)
     MANIM_AVAILABLE = True
 except ImportError:
     MANIM_AVAILABLE = False
 
 
-def trace_layout(comp_list):
-    """Replay plot() silently and return ({component: segments}, bbox).
+def _energy_gradient_colors():
+    return [ManimColor("#" + stop) for stop in ENERGY_STOPS]
 
-    Segments are 2xN arrays of xy data; the '__wrap__' key holds the
-    depth-0 wrap-around wire. bbox is (xmin, xmax, ymin, ymax).
-    """
-    fig, ax = plt.subplots()
-    record = {}
-    circuit_plot(comp_list, ax=ax, record=record, show=False)
-    plt.close(fig)
-    all_segs = [seg for segs in record.values() for seg in segs]
-    xs = np.concatenate([seg[0] for seg in all_segs])
-    ys = np.concatenate([seg[1] for seg in all_segs])
-    return record, (xs.min(), xs.max(), ys.min(), ys.max())
+
+def _color_at(fraction, stops):
+    """Piecewise interpolation across the shared multi-stop energy gradient."""
+    if fraction <= 0:
+        return stops[0]
+    if fraction >= 1:
+        return stops[-1]
+    span = 1.0 / (len(stops) - 1)
+    idx = min(int(fraction / span), len(stops) - 2)
+    local = (fraction - idx * span) / span
+    return interpolate_color(stops[idx], stops[idx + 1], local)
 
 
 def make_circuit_scene(comp_list, Es, run_time=10.0, name="ArcaneCircuitScene",
@@ -65,9 +64,9 @@ def make_circuit_scene(comp_list, Es, run_time=10.0, name="ArcaneCircuitScene",
     if not MANIM_AVAILABLE:
         raise ImportError("manim is not installed; pip install manim to use make_circuit_scene")
 
-    record, (x0, x1, y0, y1) = trace_layout(comp_list)
-    scale = min(frame_width / max(x1 - x0, 1e-6), frame_height / max(y1 - y0, 1e-6))
-    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    record, bbox = trace_layout(comp_list)
+    (cx, cy), scale = bbox_center_scale(bbox, frame_width, frame_height)
+    stops = _energy_gradient_colors()
 
     def to_point(x, y):
         return np.array([(x - cx) * scale, (y - cy) * scale, 0.0])
@@ -76,25 +75,23 @@ def make_circuit_scene(comp_list, Es, run_time=10.0, name="ArcaneCircuitScene",
 
     class CircuitScene(Scene):
         def construct(self):
+            self.camera.background_color = ManimColor("#1a1b2e")
             tracker = ValueTracker(0.0)
             groups = []
             for comp, segs in record.items():
                 lines = VGroup(*[
                     Line(to_point(seg[0][k], seg[1][k]),
                          to_point(seg[0][k + 1], seg[1][k + 1]),
-                         stroke_width=2, color=GREY)
+                         stroke_width=2, color=stops[0])
                     for seg in segs for k in range(seg.shape[1] - 1)
                 ])
                 self.add(lines)
                 series = Es.get(getattr(comp, 'name', None))
                 if series:
-                    norm = max(max(series), 1e-9)
-
-                    def updater(mob, series=series, norm=norm):
-                        i = min(int(tracker.get_value()), len(series) - 1)
-                        frac = min(series[i] / norm, 1.0)
-                        mob.set_stroke(color=interpolate_color(GREY, YELLOW, frac),
-                                       width=2 + 6 * frac)
+                    def updater(mob, series=series):
+                        frac = energy_fraction(series, int(tracker.get_value()))
+                        mob.set_stroke(color=_color_at(frac, stops),
+                                       width=energy_stroke_width(frac))
                     lines.add_updater(updater)
                 groups.append(lines)
             if n_steps > 1:
@@ -111,8 +108,8 @@ def make_circuit_scene(comp_list, Es, run_time=10.0, name="ArcaneCircuitScene",
 
 if MANIM_AVAILABLE:
     def _build_demo_scene():
-        from components import Battery, Switch, Caster, connect
-        from simulation import simulate
+        from arcane.components import Battery, Switch, Caster, connect
+        from arcane.simulation import simulate
 
         battery = Battery(2, name="battery")
         battery.energy = 300

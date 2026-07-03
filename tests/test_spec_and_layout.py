@@ -2,10 +2,11 @@ import os
 
 import pytest
 
-from circuit_spec import build_circuit, load_circuit
-from exceptions import CircuitException
-from manim_scene import MANIM_AVAILABLE, make_circuit_scene, trace_layout
-from simulation import simulate
+from arcane.circuit_spec import build_circuit, load_circuit
+from arcane.exceptions import CircuitException
+from arcane.manim_scene import MANIM_AVAILABLE, make_circuit_scene
+from arcane.layout import trace_layout
+from arcane.simulation import simulate
 
 EXAMPLE = os.path.join(os.path.dirname(__file__), os.pardir, 'examples', 'demo_circuit.json')
 
@@ -30,7 +31,7 @@ def test_bad_specs_raise_circuit_exception(bad_spec):
 
 
 def test_trace_layout_records_every_component():
-    from components import Battery, Switch, Caster, connect, get_component_names
+    from arcane.components import Battery, Switch, Caster, connect, get_component_names
     b = Battery(2, name='battery')
     s = Switch(2, name='switch')
     c1, c2 = Caster(2, name='caster 1'), Caster(2, name='caster 2')
@@ -46,7 +47,7 @@ def test_trace_layout_records_every_component():
 
 @pytest.mark.skipif(MANIM_AVAILABLE, reason='manim installed; guard not applicable')
 def test_make_circuit_scene_raises_without_manim():
-    from components import Battery, Caster, connect
+    from arcane.components import Battery, Caster, connect
     circuit = connect([Battery(1, name='b'), Caster(1, name='c')])
     with pytest.raises(ImportError):
         make_circuit_scene(circuit, {})

@@ -1,9 +1,9 @@
 import pytest
 
-from components import (Battery, Wire, Blank, Caster, Junction, AndGate,
+from arcane.components import (Battery, Wire, Blank, Caster, Junction, AndGate,
                         connect, check_level, get_component_names, plot)
-from exceptions import CircuitException
-from simulation import step_all
+from arcane.exceptions import CircuitException
+from arcane.simulation import step_all
 
 
 def test_junction_rejects_multi_in_multi_out():

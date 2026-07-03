@@ -1,7 +1,7 @@
 import inspect
 import matplotlib.pyplot as plt
 import numpy as np
-from exceptions import *
+from arcane.exceptions import CircuitException
 
 class component():
     def __init__(self,requires_input = True, level = 1,energy = 0,name = 'placeholder_name'):

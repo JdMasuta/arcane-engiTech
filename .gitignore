@@ -3,3 +3,8 @@ __pycache__/
 *.pyc
 .pytest_cache/
 media/
+*.egg-info/
+build/
+dist/
+.arcane_media/
+*.mp4
