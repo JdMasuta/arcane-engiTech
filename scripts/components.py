@@ -101,10 +101,10 @@ class Junction(component):
         self.energy_out_rate = 1
         
         
-        if self.n_inputs != 1 or self.n_outputs != 1:
-            #check this for simplicity. In theory we can have a 3 input 2 output case work but for this code 
+        if self.n_inputs != 1 and self.n_outputs != 1:
+            #check this for simplicity. In theory we can have a 3 input 2 output case work but for this code
             # I think demanding at least one be 1 works better
-            CircuitException(f"In {self.name} either n_inputs or n_outputs must be 1. Instead found n_inputs = {self.n_inputs},n_outputs = {self.n_outputs}")
+            raise CircuitException(f"In {self.name} either n_inputs or n_outputs must be 1. Instead found n_inputs = {self.n_inputs},n_outputs = {self.n_outputs}")
         self.color = 'purple'
 
     def step(self):
@@ -151,10 +151,11 @@ class Junction(component):
 
             #if any don't meet that requirement we need to spread the remainder out
             remaining_energy = self.energy
-            
-            for i in remaining_idx:
-                self.next_comp[i].energy += remaining_energy/len(remaining_idx)
-                self.energy -= remaining_energy/len(remaining_idx)
+
+            if remaining_idx and remaining_energy > 0:
+                for i in remaining_idx:
+                    self.next_comp[i].energy += remaining_energy/len(remaining_idx)
+                    self.energy -= remaining_energy/len(remaining_idx)
             
     
     def plot(self,start_point = [[0,0]],x_size = 2,y_size = 2,ax = None,buffer = 0.1):
@@ -275,22 +276,23 @@ class Switch(component):
         self.allow_input = True
         self.allow_output = True
 
-def connect(comp_list: list[component],depth = 0,branch_idx = None):
+def connect(comp_list: list[component],depth = 0,branch_idx = None,verbose = False):
     wire_i = 0
     junc_i = 0
     if depth > 100:
         raise RecursionError("Depth exceed maximum (100) in connect")
     if not isinstance(comp_list,list):
         comp_list = [comp_list] #if we have single component inputs
-    
+
     n_components = len(comp_list)
     new_comp_list = []
-    
+
     for i in range(n_components):
-        try:
-            print(f"{''.join(['     ']*depth)}i: ",i, comp_list[i].name)
-        except:
-            print(f"{''.join(['     ']*depth)}i: ",i, comp_list[i])
+        if verbose:
+            try:
+                print(f"{''.join(['     ']*depth)}i: ",i, comp_list[i].name)
+            except AttributeError:
+                print(f"{''.join(['     ']*depth)}i: ",i, comp_list[i])
         j = (i+1)%n_components
         if isinstance(comp_list[j],list):
             n_outputs = len(comp_list[j])
@@ -317,10 +319,11 @@ def connect(comp_list: list[component],depth = 0,branch_idx = None):
                     raise CircuitException(f"Wire object connecting {wire_obj.previous_comp.name} ({wire_obj.previous_comp.__class__.__name__}) and {wire_obj.next_comp.name} ({wire_obj.next_comp.__class__.__name__}) have different levels: {wire_obj.previous_comp.level} and {wire_obj.next_comp.level}")
                 #comp_list[i].next_comp = comp_list[j]
                 #comp_list[j].previous_comp = comp_list[i]
+                new_comp_list.append(comp_list[i])
+                new_comp_list.append(wire_obj)
             else:
                 comp_list[i].next_comp = None
-            new_comp_list.append(comp_list[i])
-            new_comp_list.append(wire_obj)
+                new_comp_list.append(comp_list[i])
         else:
             #TODO
             #  [ ] Need to include the fact some branches technically don't need to return in the case of
@@ -332,7 +335,7 @@ def connect(comp_list: list[component],depth = 0,branch_idx = None):
             junc_object_c = Junction(n_outputs,n_inputs,name = f'junction -{junc_i}_{depth}')
             
             #connect the list that the junctions connect
-            sub_comp_lists = [connect(cl,depth = depth + 1,branch_idx = bi) for bi,cl in enumerate(comp_list[j])]
+            sub_comp_lists = [connect(cl,depth = depth + 1,branch_idx = bi,verbose = verbose) for bi,cl in enumerate(comp_list[j])]
 
             #check each individual branch
             for scl in sub_comp_lists:
@@ -349,7 +352,7 @@ def connect(comp_list: list[component],depth = 0,branch_idx = None):
                 scl[-1].next_comp = junc_object_c
             junc_object_c.next_comp = [comp_list[(j + 1)%n_components]] #as index j is the sublists
             junc_object_c.level = junc_object_c.previous_comp[0].level
-            comp_list[i].next_component = junc_object_o
+            comp_list[i].next_comp = junc_object_o
             new_comp_list.append(comp_list[i])
             new_comp_list.append(junc_object_o)
             new_comp_list.append(sub_comp_lists)
@@ -357,7 +360,8 @@ def connect(comp_list: list[component],depth = 0,branch_idx = None):
                 
         
         #new_comp_list.append(comp_list[j])
-        print("i: ",i,new_comp_list)
+        if verbose:
+            print("i: ",i,new_comp_list)
     return(new_comp_list)
 def check_level(sub_comp_list):
     levels = [sc.level for sc in sub_comp_list]
