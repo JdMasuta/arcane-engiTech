@@ -611,37 +611,56 @@ def wrap_around(end_point,wrap_to = [0,0],buffer = 3.,ax = None):
                           [end_point[1],end_point[1],end_point[1] - buffer,end_point[1] - buffer,end_point[1],end_point[1]]])
     ax.plot(wire_line[0],wire_line[1])
 
-def plot(comp_list,buffer = 3.,start_point = [0,0],depth = 0,ax = None):
+def plot(comp_list,buffer = 3.,start_point = [0,0],depth = 0,ax = None,record = None,show = True):
+    """Draw the circuit; when record is a dict it also captures, per
+    component, the xy line segments its symbol drew (used by the manim
+    converter). Patch-based decorations (e.g. the NOT gate's circle) are
+    not captured.
+    """
     n_components = len(comp_list)
     start_point_init = start_point.copy()
     if ax is None:
         fig,ax = plt.subplots(1,1,figsize = (5,5))
+
+    def capture(comp,plot_call):
+        if record is None:
+            return(plot_call())
+        n0 = len(ax.lines)
+        result = plot_call()
+        record.setdefault(comp,[]).extend([np.array(l.get_data()) for l in ax.lines[n0:]])
+        return(result)
+
     for i in range(n_components):
         comp = comp_list[i]
         role = getattr(comp,'junction_role',None)
         is_opening = isinstance(comp,Junction) and (role == 'open' or (role is None and "-" not in comp.name))
         is_closing = isinstance(comp,Junction) and (role == 'close' or (role is None and "-" in comp.name))
         if is_opening:
-            end_points = comp.plot([start_point])
+            end_points = capture(comp,lambda: comp.plot([start_point],ax = ax))
             #plot branches
             junction_close_points = []
             for k,scl in enumerate(comp_list[i+1]):
-                sub_end_point = plot(scl,start_point = end_points[k],depth = depth + 1,ax = ax)
+                sub_end_point = plot(scl,start_point = end_points[k],depth = depth + 1,ax = ax,record = record)
                 junction_close_points.append(sub_end_point)
             #plot closing
-            end_point = comp_list[i+2].plot(junction_close_points)[0]
+            end_point = capture(comp_list[i+2],lambda: comp_list[i+2].plot(junction_close_points,ax = ax))[0]
             start_point = np.array(end_point)
 
         elif isinstance(comp,list) or is_closing:
             continue
         else:
-            end_point = comp_list[i].plot(start_point)
+            end_point = capture(comp,lambda: comp.plot(start_point,ax = ax))
             start_point = np.array(end_point)# + np.array([buffer,0])
-            #ax.plot([end_point[0],start_point[0],],[end_point[1],start_point[1],],c = 'r')
     if depth == 0:
-        
-        wrap_around(end_point,wrap_to = start_point_init,buffer = buffer,ax = ax)
-        plt.show()
+        if record is None:
+            wrap_around(end_point,wrap_to = start_point_init,buffer = buffer,ax = ax)
+        else:
+            n0 = len(ax.lines)
+            wrap_around(end_point,wrap_to = start_point_init,buffer = buffer,ax = ax)
+            record.setdefault('__wrap__',[]).extend([np.array(l.get_data()) for l in ax.lines[n0:]])
+        if show:
+            plt.show()
+        return(end_point)
     else:
         return(end_point)
 
