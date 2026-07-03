@@ -43,11 +43,13 @@ def build_circuit(spec, registry=None):
         if isinstance(entry, list):
             return [build_entry(sub) for sub in entry]
         if not isinstance(entry, dict) or "type" not in entry:
-            raise CircuitException(f"Spec entries must be arrays or objects with a 'type' key, got: {entry!r}")
+            raise CircuitException(
+                f"Spec entries must be arrays or objects with a 'type' key, got: {entry!r}")
         kwargs = dict(entry)
         type_name = kwargs.pop("type")
         if type_name not in COMPONENT_TYPES:
-            raise CircuitException(f"Unknown component type {type_name!r}; known types: {sorted(COMPONENT_TYPES)}")
+            raise CircuitException(
+                f"Unknown component type {type_name!r}; known types: {sorted(COMPONENT_TYPES)}")
         try:
             comp = COMPONENT_TYPES[type_name](**kwargs)
         except TypeError as err:
