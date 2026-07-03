@@ -219,6 +219,9 @@ class Junction(component):
             raise CircuitException(f"In {self.name} either n_inputs or n_outputs must be 1. Instead found n_inputs = {self.n_inputs},n_outputs = {self.n_outputs}")
         self.color = 'purple'
         self.self_managed_links = True
+        #'open'/'close' is stamped by connect(); 'inline' junction-like
+        # components (1-in gates) are plotted as ordinary single components
+        self.junction_role = None
 
     def step(self):
         #get energy from all possible inputs
@@ -318,6 +321,106 @@ class Junction(component):
                         color = self.color)
                 end_points.append([output_x[-1],output_y[i]])
         return(end_points)
+class LogicGate(Junction):
+    """Base for gates: n inputs merged into 1 output, gated by a boolean rule.
+
+    An input counts as *active* when it holds at least `threshold` energy
+    and allows output. When gate_open(active) is True the gate pulls up to
+    1 energy per step from each active input and pushes what it holds
+    onward; when False nothing moves through it.
+
+    Multi-input gates are placed directly after a branch list, where
+    connect() uses them as that branch list's closing junction.
+    """
+    label = '?'
+    def __init__(self,n_inputs,threshold = 0.5,level = None,energy = 0,name = "gate"):
+        super().__init__(n_inputs,1,level = level,energy = energy,name = name)
+        self.threshold = threshold
+        self.color = 'g'
+        self.junction_role = 'inline'
+
+    def input_active(self):
+        return([pc.energy >= self.threshold and pc.allow_output for pc in self.previous_comp])
+
+    def gate_open(self,active):
+        raise NotImplementedError
+
+    def step(self):
+        active = self.input_active()
+        if self.gate_open(active):
+            for i,a in enumerate(active):
+                if a and self.energy < self.max_energy:
+                    de = min([self.previous_comp[i].energy,1])
+                    self.energy += de
+                    self.previous_comp[i].energy -= de
+        de = self.energy
+        nxt = self.next_comp[0]
+        if de > 0 and nxt.allow_input and not nxt.self_managed_links and nxt.energy + de < nxt.max_energy:
+            nxt.energy += de
+            self.energy -= de
+
+    def plot(self,start_point = [[0,0]],x_size = 2,y_size = 2,ax = None,buffer = 0.1):
+        if ax is None:
+            ax = plt.gca()
+        end_points = super().plot(start_point = start_point,x_size = x_size,y_size = y_size,ax = ax,buffer = buffer)
+        mid_y = np.mean([sp[1] for sp in start_point]) if self.n_inputs > 1 else start_point[0][1]
+        ax.text(end_points[0][0] - x_size/2,mid_y + y_size/2 + buffer,self.label,color = self.color,ha = 'center')
+        return(end_points)
+
+class AndGate(LogicGate):
+    label = 'AND'
+    def __init__(self,n_inputs = 2,threshold = 0.5,level = None,name = "and gate"):
+        super().__init__(n_inputs,threshold = threshold,level = level,name = name)
+    def gate_open(self,active):
+        return(all(active))
+
+class OrGate(LogicGate):
+    label = 'OR'
+    def __init__(self,n_inputs = 2,threshold = 0.5,level = None,name = "or gate"):
+        super().__init__(n_inputs,threshold = threshold,level = level,name = name)
+    def gate_open(self,active):
+        return(any(active))
+
+class NotGate(LogicGate):
+    """Inverter: emits 1 energy per step from an internal reserve only while
+    its input is quiet. The control signal is consumed either way (up to
+    1/step): it refills the reserve when there is room, otherwise it
+    dissipates — a NOT gate held open burns the energy used to hold it.
+    """
+    label = 'NOT'
+    def __init__(self,supply = 100,threshold = 0.5,level = None,name = "not gate"):
+        super().__init__(1,threshold = threshold,level = level,energy = supply,name = name)
+        self.supply = supply
+        self.max_energy = supply
+
+    def gate_open(self,active):
+        return(not active[0])
+
+    def step(self):
+        prev = self.previous_comp[0]
+        was_active = self.input_active()[0]
+        de = min([prev.energy,1])
+        if de > 0 and prev.allow_output:
+            prev.energy -= de
+            self.energy = min([self.energy + de,self.max_energy])
+        if not was_active:
+            emit = min([self.energy,1])
+            nxt = self.next_comp[0]
+            if emit > 0 and nxt.allow_input and not nxt.self_managed_links and nxt.energy + emit < nxt.max_energy:
+                nxt.energy += emit
+                self.energy -= emit
+
+    def plot(self,start_point = (0,0),x_size = 1.5,y_size = 1,ax = None):
+        if ax is None:
+            ax = plt.gca()
+        tip_x = start_point[0] + x_size*0.8
+        ax.plot([start_point[0],start_point[0],tip_x,start_point[0]],
+                [start_point[1] - y_size/2,start_point[1] + y_size/2,start_point[1],start_point[1] - y_size/2],
+                color = self.color,ls = "-")
+        circle = plt.Circle((tip_x + x_size*0.1,start_point[1]),x_size*0.1,fill = False,color = self.color)
+        ax.add_patch(circle)
+        return([start_point[0] + x_size,start_point[1]])
+
 class Caster(component):
     def __init__(self,level = 1,energy = 0,name = "caster"):
         super().__init__(level = level,requires_input=True,energy = energy,name = name)
@@ -367,12 +470,12 @@ class Switch(component):
         self.allow_output = start_on
         self.color = 'k'
     def step(self):
-        if self.allow_input and self.previous_comp.energy > 0 and self.previous_comp.allow_output:
-
+        if self.allow_input and self.previous_comp.energy > 0 and self.previous_comp.allow_output \
+                and not self.previous_comp.self_managed_links:
             self.previous_comp.energy -=1
             self.energy += 1
-        if self.energy > 0 and self.allow_output and self.next_comp.allow_input:
-
+        if self.energy > 0 and self.allow_output and self.next_comp.allow_input \
+                and not self.next_comp.self_managed_links:
             self.next_comp.energy += 1
             self.energy -= 1
     def plot(self,start_point = (0,0),x_size = 2,y_size = 0.25,ax = None):
@@ -410,10 +513,21 @@ def connect(comp_list: list[component],depth = 0,branch_idx = None,verbose = Fal
     #build a node per element: singles stay as-is, branch lists become
     # (opening junction, connected sub lists, closing junction)
     nodes = []
-    for entry in comp_list:
+    consumed = set()
+    for k,entry in enumerate(comp_list):
+        if k in consumed:
+            continue
         if isinstance(entry,list):
             junc_object_o = Junction(1,len(entry),name = f'junction {junc_i}_{depth}')
-            junc_object_c = Junction(len(entry),1,name = f'junction -{junc_i}_{depth}')
+            #a multi-input gate right after a branch list acts as its closing junction
+            follower = comp_list[k+1] if k+1 < n_components else None
+            if isinstance(follower,LogicGate) and follower.n_inputs == len(entry):
+                junc_object_c = follower
+                consumed.add(k+1)
+            else:
+                junc_object_c = Junction(len(entry),1,name = f'junction -{junc_i}_{depth}')
+            junc_object_o.junction_role = 'open'
+            junc_object_c.junction_role = 'close'
             junc_i += 1
 
             sub_comp_lists = [connect(cl,depth = depth + 1,branch_idx = bi,verbose = verbose) for bi,cl in enumerate(entry)]
@@ -439,10 +553,11 @@ def connect(comp_list: list[component],depth = 0,branch_idx = None,verbose = Fal
         return(node[2] if isinstance(node,tuple) else node)
 
     #link consecutive nodes; only a closed loop (depth 0) wraps around
-    n_links = n_components if depth == 0 and n_components > 1 else n_components - 1
-    link_wires = [None]*n_components
+    n_nodes = len(nodes)
+    n_links = n_nodes if depth == 0 and n_nodes > 1 else n_nodes - 1
+    link_wires = [None]*n_nodes
     for i in range(n_links):
-        j = (i+1)%n_components
+        j = (i+1)%n_nodes
         t,h = tail(nodes[i]),head(nodes[j])
         t_junc,h_junc = isinstance(t,Junction),isinstance(h,Junction)
 
@@ -502,8 +617,12 @@ def plot(comp_list,buffer = 3.,start_point = [0,0],depth = 0,ax = None):
     if ax is None:
         fig,ax = plt.subplots(1,1,figsize = (5,5))
     for i in range(n_components):
-        if isinstance(comp_list[i],Junction) and "-" not in comp_list[i].name:
-            end_points = comp_list[i].plot([start_point])
+        comp = comp_list[i]
+        role = getattr(comp,'junction_role',None)
+        is_opening = isinstance(comp,Junction) and (role == 'open' or (role is None and "-" not in comp.name))
+        is_closing = isinstance(comp,Junction) and (role == 'close' or (role is None and "-" in comp.name))
+        if is_opening:
+            end_points = comp.plot([start_point])
             #plot branches
             junction_close_points = []
             for k,scl in enumerate(comp_list[i+1]):
@@ -513,7 +632,7 @@ def plot(comp_list,buffer = 3.,start_point = [0,0],depth = 0,ax = None):
             end_point = comp_list[i+2].plot(junction_close_points)[0]
             start_point = np.array(end_point)
 
-        elif isinstance(comp_list[i],list) or (isinstance(comp_list[i],Junction) and "-" in comp_list[i].name):
+        elif isinstance(comp,list) or is_closing:
             continue
         else:
             end_point = comp_list[i].plot(start_point)
