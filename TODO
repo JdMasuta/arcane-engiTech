@@ -1,4 +1,10 @@
-[ ] Add functionality to allow two junctions to meet
-[ ] Add resistors
-[ ] Add Concentration Components
-[ ] Logic Gates
+[x] Add functionality to allow two junctions to meet
+[x] Add resistors
+[x] Add Concentration Components
+[x] Logic Gates
+[x] Manim converter (scripts/manim_scene.py)
+[x] JSON circuit descriptions (scripts/circuit_spec.py)
+[ ] Carry text labels and patch decorations (NOT gate circle) into manim scenes
+[ ] Nested branch lists inside branches are untested in the manim converter
+[ ] Smarter junction splitting (respect downstream max_energy in the remainder pass)
+[ ] XOR / NAND gates if a circuit ever needs them

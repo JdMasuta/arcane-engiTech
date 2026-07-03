@@ -1,0 +1,5 @@
+numpy
+matplotlib
+pytest
+# optional, only needed for the animation converter (scripts/manim_scene.py):
+# manim

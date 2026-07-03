@@ -1,0 +1,12 @@
+{
+    "circuit": [
+        {"type": "Battery", "level": 2, "name": "battery", "energy": 500},
+        {"type": "Switch", "level": 2, "name": "switch", "start_on": true},
+        {"type": "Concentration", "level": 2, "name": "focus crystal", "capacity": 25},
+        [
+            [{"type": "Caster", "level": 2, "name": "caster 1"}],
+            [{"type": "Resistor", "level": 2, "name": "resistor", "resistance": 3},
+             {"type": "Caster", "level": 2, "name": "caster 2"}]
+        ]
+    ]
+}
