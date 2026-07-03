@@ -1,5 +1,6 @@
 numpy
 matplotlib
-pytest
-# optional, only needed for the animation converter (scripts/manim_scene.py):
+PySide6      # desktop studio (arcane-gui)
+pytest       # test suite
+# optional, only needed to export videos (arcane.render / the GUI Render button):
 # manim

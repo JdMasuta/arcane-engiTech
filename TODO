@@ -2,9 +2,12 @@
 [x] Add resistors
 [x] Add Concentration Components
 [x] Logic Gates
-[x] Manim converter (scripts/manim_scene.py)
-[x] JSON circuit descriptions (scripts/circuit_spec.py)
+[x] Manim converter (arcane/manim_scene.py)
+[x] JSON circuit descriptions (arcane/circuit_spec.py)
+[x] Desktop studio: circuit + energy views, scrubbing, manim export (arcane/gui)
+[ ] In-app circuit editor (place/connect components without writing JSON)
 [ ] Carry text labels and patch decorations (NOT gate circle) into manim scenes
+[ ] Live render progress bar wired to manim's progress callbacks
 [ ] Nested branch lists inside branches are untested in the manim converter
 [ ] Smarter junction splitting (respect downstream max_energy in the remainder pass)
 [ ] XOR / NAND gates if a circuit ever needs them

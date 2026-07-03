@@ -1,7 +1,7 @@
 import pytest
 
 from arcane.components import (Battery, Wire, Blank, Caster, Junction, AndGate,
-                        connect, check_level, get_component_names, plot)
+                               connect, check_level, get_component_names, plot)
 from arcane.exceptions import CircuitException
 from arcane.simulation import step_all
 

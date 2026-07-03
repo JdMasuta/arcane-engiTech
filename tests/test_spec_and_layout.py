@@ -13,7 +13,8 @@ EXAMPLE = os.path.join(os.path.dirname(__file__), os.pardir, 'examples', 'demo_c
 
 def test_load_example_spec_and_simulate():
     circuit, registry = load_circuit(EXAMPLE)
-    assert {'battery', 'switch', 'focus crystal', 'caster 1', 'resistor', 'caster 2'} <= set(registry)
+    expected = {'battery', 'switch', 'focus crystal', 'caster 1', 'resistor', 'caster 2'}
+    assert expected <= set(registry)
     t, Es, ET = simulate(circuit, 50)
     assert ET[0] == 500
     assert max(Es['focus crystal']) > 0  # energy actually flowed
