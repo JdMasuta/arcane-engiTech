@@ -31,13 +31,6 @@ lack browsing tools, everything you need is summarized below):
 - The short that inspired this fork: https://youtube.com/shorts/KaTegZBmYRI
 - Manim Community docs (for the animation task below): https://docs.manim.community/
 
-**Important scope note:** the tabletop book is commercial, copyrighted work.
-Do not try to reproduce its rules text, tables, or specific numeric balance
-values verbatim. Instead implement the general *simulation concepts* the
-public description and this repo's own existing code already establish
-(battery/wire/resistor/capacitor/switch/junction/logic-gate as a circuit
-analogue for magic) — the same spirit as the existing prototype code.
-
 ## The simulation model already in place
 
 The repo represents a circuit as a **linked list of component objects**
@@ -116,7 +109,7 @@ first be a *correct* one:
 5. Leftover debug `print()` statements inside `connect()` should be removed
    or converted to an opt-in `verbose`/logging flag.
 
-## What "complete" means for this project — build list, in priority order
+## What "complete" means for this project (as assumed by Claude Sonnet 5) — build list, in priority order
 
 1. **Fix the bugs above.**
 2. **Resistor component** — throttles energy flow rate rather than passing
@@ -184,10 +177,10 @@ first be a *correct* one:
   `Switch`, `Caster`, `Blank`) or the existing matplotlib `plot()` path;
   additive changes and targeted bug fixes only, unless a redesign is clearly
   required by a TODO item (e.g. junction-to-junction linking necessarily
-  touches `Wire`/`connect()`).
+  touches `Wire`/`connect()`), or you think it would be a great boon to the project as a whole (simpler and/or more effective/holistic solutions).
 - Favor small, focused classes/functions consistent with the existing style
   over new abstractions/frameworks.
 - No comments explaining *what* code does; only comment non-obvious *why*
   (the concentration-component semantics you choose are a good candidate).
 - Commit incrementally with clear messages as you complete each numbered
-  item above, rather than one giant commit.
+  item above, rather than one giant commit (conventional commits).
