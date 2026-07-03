@@ -14,6 +14,10 @@ class component():
         self.allow_input = True
         self.allow_output = True
         self.max_energy = 2
+        #a self-managed component is the sole actor on its links: wires must
+        # not transfer across a link a self-managed neighbour already handles,
+        # and when both ends of a link are self-managed the downstream one pulls
+        self.self_managed_links = False
         #all components need a drawing function
         #   and also connecting points I think
         #   for now, let's just get them in one line
@@ -65,9 +69,7 @@ class Wire(component):
         prev_energy = self.previous_comp.energy > 0
         prev_allow = self.previous_comp.allow_output
         self_thresh = self.energy < self.max_energy
-        #junctions and resistors manage both of their own links, so wires
-        # must not also transfer across those links or energy moves twice
-        prev_passive = not isinstance(self.previous_comp,(Junction,Resistor))
+        prev_passive = not self.previous_comp.self_managed_links
 
         if prev_energy and prev_allow and self_thresh and prev_passive :
             de = min([self.previous_comp.energy,self.energy_in_rate])
@@ -79,7 +81,7 @@ class Wire(component):
         self_energy = self.energy > 0
         next_allow = self.next_comp.allow_input
         next_thresh = self.next_comp.energy + de < self.next_comp.max_energy
-        next_passive = not isinstance(self.next_comp,(Junction,Resistor))
+        next_passive = not self.next_comp.self_managed_links
 
         if  self_energy and next_allow and next_thresh and next_passive:
             
@@ -113,17 +115,17 @@ class Resistor(Wire):
         self.energy_in_rate = 1/resistance
         self.energy_out_rate = 1/resistance
         self.color = 'orange'
+        self.self_managed_links = True
 
     def step(self):
         de = min([self.previous_comp.energy,self.energy_in_rate])
-        if de > 0 and self.previous_comp.allow_output and self.energy + de <= self.max_energy \
-                and not isinstance(self.previous_comp,Junction):
+        if de > 0 and self.previous_comp.allow_output and self.energy + de <= self.max_energy:
             self.energy += de
             self.previous_comp.energy -= de
 
         de = min([self.energy,self.energy_out_rate])
         if de > 0 and self.next_comp.allow_input and self.next_comp.energy + de < self.next_comp.max_energy \
-                and not isinstance(self.next_comp,Junction):
+                and not self.next_comp.self_managed_links:
             self.next_comp.energy += de
             self.energy -= de
 
@@ -140,6 +142,68 @@ class Resistor(Wire):
         ax.plot(xs,ys,color = self.color,ls = "-")
         return([start_point[0] + x_size,start_point[1]])
 
+class Concentration(component):
+    """Capacitor/crystal analogue of the D&D concentration mechanic.
+
+    Chosen semantics:
+    - while *charging* it pulls up to charge_rate energy per step from the
+      previous component and holds it, releasing nothing downstream
+    - once the stored energy reaches capacity it starts *discharging*:
+      each step it dumps as much held energy as the next component can
+      accept, until empty, then goes back to charging
+    - break_concentration() models a failed concentration save: whatever
+      is held dissipates (leaves the circuit entirely, it is not passed
+      on) and charging restarts from zero
+
+    Like Resistor, it is the sole actor on both of its links.
+    """
+    def __init__(self,capacity = 50,charge_rate = 1,level = None,energy = 0,name = "concentration"):
+        super().__init__(level = level,energy = energy,name = name)
+        if capacity <= 0:
+            raise CircuitException(f"In {name} capacity must be > 0, found {capacity}")
+        self.capacity = capacity
+        self.charge_rate = charge_rate
+        self.max_energy = capacity
+        self.discharging = False
+        self.color = 'b'
+        self.self_managed_links = True
+
+    def step(self):
+        if not self.discharging:
+            de = min([self.previous_comp.energy,self.charge_rate,self.capacity - self.energy])
+            if de > 0 and self.previous_comp.allow_output:
+                self.energy += de
+                self.previous_comp.energy -= de
+            if self.energy >= self.capacity:
+                self.discharging = True
+        else:
+            room = self.next_comp.max_energy - self.next_comp.energy
+            de = min([self.energy,room])
+            if de > 0 and self.next_comp.allow_input and not self.next_comp.self_managed_links:
+                self.next_comp.energy += de
+                self.energy -= de
+            if self.energy <= 0:
+                self.discharging = False
+        self.allow_output = self.discharging
+
+    def break_concentration(self):
+        lost = self.energy
+        self.energy = 0
+        self.discharging = False
+        self.allow_output = False
+        return(lost)
+
+    def plot(self,start_point = (0,0),x_size = 1,y_size = 1,ax = None):
+        if ax is None:
+            ax = plt.gca()
+        gap = x_size/4
+        mid = start_point[0] + x_size/2
+        ax.plot([start_point[0],mid - gap/2],[start_point[1],start_point[1]],color = self.color,ls = "-")
+        ax.plot([mid + gap/2,start_point[0] + x_size],[start_point[1],start_point[1]],color = self.color,ls = "-")
+        ax.plot([mid - gap/2,mid - gap/2],[start_point[1] - y_size/2,start_point[1] + y_size/2],color = self.color,ls = "-")
+        ax.plot([mid + gap/2,mid + gap/2],[start_point[1] - y_size/2,start_point[1] + y_size/2],color = self.color,ls = "-")
+        return([start_point[0] + x_size,start_point[1]])
+
 class Junction(component):
     def __init__(self,n_inputs,n_outputs,level = None,energy = 0,name = "junction"):
         self.n_inputs = n_inputs
@@ -154,6 +218,7 @@ class Junction(component):
             # I think demanding at least one be 1 works better
             raise CircuitException(f"In {self.name} either n_inputs or n_outputs must be 1. Instead found n_inputs = {self.n_inputs},n_outputs = {self.n_outputs}")
         self.color = 'purple'
+        self.self_managed_links = True
 
     def step(self):
         #get energy from all possible inputs
@@ -187,7 +252,7 @@ class Junction(component):
             allowed_outputs = []
             
             for output_comp in range(self.n_outputs):
-                if self.next_comp[output_comp].allow_input:
+                if self.next_comp[output_comp].allow_input and not self.next_comp[output_comp].self_managed_links:
                     allowed_outputs.append(output_comp)
             n_allowed_out = len(allowed_outputs)
             remaining_idx = []
