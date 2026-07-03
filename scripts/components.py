@@ -58,28 +58,30 @@ class Wire(component):
     def __init__(self,level = None,energy = 0,name = "wire"):
         super().__init__(level = level,energy = energy,name = name)
         self.energy_in_rate = 1
-        self.energy_out_rate = 1
+        self.energy_out_rate = np.inf #wires dump everything they hold each step
         self.color = 'r'
     def step(self):
-        
+
         prev_energy = self.previous_comp.energy > 0
         prev_allow = self.previous_comp.allow_output
         self_thresh = self.energy < self.max_energy
-        prev_junction = not isinstance(self.previous_comp,Junction)
-        
-        if prev_energy and prev_allow and self_thresh and prev_junction :
+        #junctions and resistors manage both of their own links, so wires
+        # must not also transfer across those links or energy moves twice
+        prev_passive = not isinstance(self.previous_comp,(Junction,Resistor))
+
+        if prev_energy and prev_allow and self_thresh and prev_passive :
             de = min([self.previous_comp.energy,self.energy_in_rate])
             self.energy += de
             self.previous_comp.energy -= de
-            
-        de = self.energy#min([self.energy_out_rate,self.energy])
+
+        de = min([self.energy_out_rate,self.energy])
 
         self_energy = self.energy > 0
         next_allow = self.next_comp.allow_input
         next_thresh = self.next_comp.energy + de < self.next_comp.max_energy
-        next_not_junction = not isinstance(self.next_comp,Junction)
-        
-        if  self_energy and next_allow and next_thresh and next_not_junction:
+        next_passive = not isinstance(self.next_comp,(Junction,Resistor))
+
+        if  self_energy and next_allow and next_thresh and next_passive:
             
             self.next_comp.energy += de
             self.energy -= de
@@ -91,6 +93,52 @@ class Wire(component):
                           [start_point[1],start_point[1] + y_size]])
         ax.plot(line1[0,:],line1[1,:],color = self.color,ls = "-")
         return(line1[:,1])
+
+class Resistor(Wire):
+    """A Wire that throttles flow instead of passing everything through.
+
+    Ohm's-law analogue for a discrete-step simulation: the per-step
+    transferable energy is 1/resistance, so doubling the resistance halves
+    the flow rate. resistance = 1 behaves like a rate-1 wire.
+
+    Like Junction, a Resistor is the only actor on both of its links —
+    neighbouring wires skip it — otherwise a downstream wire would pull at
+    its own (unthrottled) rate and defeat the resistance.
+    """
+    def __init__(self,resistance = 2,level = None,energy = 0,name = "resistor"):
+        super().__init__(level = level,energy = energy,name = name)
+        if resistance <= 0:
+            raise CircuitException(f"In {name} resistance must be > 0, found {resistance}")
+        self.resistance = resistance
+        self.energy_in_rate = 1/resistance
+        self.energy_out_rate = 1/resistance
+        self.color = 'orange'
+
+    def step(self):
+        de = min([self.previous_comp.energy,self.energy_in_rate])
+        if de > 0 and self.previous_comp.allow_output and self.energy + de <= self.max_energy \
+                and not isinstance(self.previous_comp,Junction):
+            self.energy += de
+            self.previous_comp.energy -= de
+
+        de = min([self.energy,self.energy_out_rate])
+        if de > 0 and self.next_comp.allow_input and self.next_comp.energy + de < self.next_comp.max_energy \
+                and not isinstance(self.next_comp,Junction):
+            self.next_comp.energy += de
+            self.energy -= de
+
+    def plot(self,start_point = [0,0],x_size = 3,y_size = 0.4,ax = None):
+        if ax is None:
+            ax = plt.gca()
+        n_zigs = 3
+        zig_x = np.linspace(start_point[0] + x_size/3,start_point[0] + 2*x_size/3,2*n_zigs + 1)
+        zig_y = np.full_like(zig_x,float(start_point[1]))
+        zig_y[1:-1:2] += y_size/2
+        zig_y[2:-1:2] -= y_size/2
+        xs = np.concatenate([[start_point[0]],zig_x,[start_point[0] + x_size]])
+        ys = np.concatenate([[start_point[1]],zig_y,[start_point[1]]])
+        ax.plot(xs,ys,color = self.color,ls = "-")
+        return([start_point[0] + x_size,start_point[1]])
 
 class Junction(component):
     def __init__(self,n_inputs,n_outputs,level = None,energy = 0,name = "junction"):
