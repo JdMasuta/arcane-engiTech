@@ -11,7 +11,7 @@ import types
 import pytest
 
 from arcane import connect, Battery, Caster, simulate
-import arcane.render as render
+import arcane.manim.render as render
 
 
 @pytest.fixture
@@ -99,7 +99,7 @@ def test_render_circuit_translates_settings_and_writes_file(simple_history, monk
 
 def test_render_wave_uses_same_plumbing(monkeypatch, tmp_path):
     from arcane.spellwave import SpellWave
-    import arcane.manim_wave as manim_wave
+    import arcane.manim.wave as manim_wave
 
     wave = SpellWave(100, 0, 120)
     captured = {}
