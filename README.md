@@ -43,11 +43,18 @@ arcane-gui            # console entry point
   component in the schematic brightens with its energy at that step, while a
   cursor tracks the same instant on the energy graph. Press play to sweep the
   whole run over the render duration.
+- **Watch spells fly.** Every caster firing spawns a renormalized wave packet
+  on the *Spell propagation* tab: scrub P(x, t) toward max range, watch the
+  renormalization constant A(t) climb, and see the classical model's energy
+  blow up (the ultra-magic catastrophe) while the quantum model stays finite.
+  The math is written up in [docs/theory.md](docs/theory.md).
 - **Tune it.** Set the step count, log-scale the energy axis, show or hide the
-  auto-inserted wires and junctions, and schedule when each switch flips on.
-- **Export.** Pick a frame rate, resolution, and duration, then render an MP4
-  through manim. The preview and the video use the same energy gradient, so
-  what you scrub is what you get.
+  auto-inserted wires and junctions, schedule when each switch flips on, and
+  set the spell wave's max range, speed, and packet width.
+- **Export.** Pick a frame rate, resolution, and duration, then render the
+  circuit animation — or the latest spell wave — to MP4 through manim. The
+  preview and the video use the same energy gradient, so what you scrub is
+  what you get.
 
 ## Components
 
@@ -112,27 +119,46 @@ circuit, registry = load_circuit("examples/demo_circuit.json")
 ## Rendering from code
 
 ```python
-from arcane import connect, simulate, render_circuit
+from arcane import connect, simulate, render_circuit, render_wave, waves_from_cast_log
+
 circuit = connect([...])
-t, Es, ET = simulate(circuit, 300)
-render_circuit(circuit, Es, "spell.mp4", fps=60, quality="1080p", run_time=10)
+casts = []
+t, Es, ET = simulate(circuit, 300, cast_log=casts)
+render_circuit(circuit, Es, "circuit.mp4", fps=60, quality="1080p", run_time=10)
+
+waves = waves_from_cast_log(casts, n_steps=300)
+if waves:
+    render_wave(waves[-1], "spell_wave.mp4", fps=60, quality="1080p")
 ```
 
 `quality` is one of `480p`, `720p`, `1080p`, `1440p`, `4k`. You can also render
 the bundled demo from the CLI with `manim -pql arcane/manim_scene.py DemoScene`.
+
+## The math: renormalized spell waves
+
+Spell propagation follows the Theory of Magic formalization: a spell is a
+wave packet Ψ(x, t) whose amplitude dies toward max range, so the real-world
+rule P = |Ψ|² breaks — the fix is a renormalized wave function
+**P = A(t)·|Ψ|²** with A(t) = 1/∫|Ψ|²dx, which stays a valid probability
+density without the classical model's infinite-energy "ultra-magic
+catastrophe". Full write-up in [docs/theory.md](docs/theory.md);
+implementation in `arcane/spellwave.py`.
 
 ## Layout
 
 ```
 arcane/
   components.py    circuit components and connect()/plot()
-  simulation.py    stepping + energy-history helpers
+  simulation.py    stepping + energy-history helpers (+ cast logging)
+  spellwave.py     renormalized wave-function spell model
   circuit_spec.py  JSON circuit specs
   layout.py        trace_layout(): reusable circuit geometry
   theme.py         shared palette + energy gradient
   manim_scene.py   circuit -> manim Scene
-  render.py        render a Scene to a video (fps/quality control)
+  manim_wave.py    spell wave -> manim Scene
+  render.py        render Scenes to video (fps/quality control)
   gui/             the PySide6 desktop studio
+docs/theory.md     the renormalized-wave-function formalization
 tests/             pytest suite
 examples/          sample JSON circuits
 ```
