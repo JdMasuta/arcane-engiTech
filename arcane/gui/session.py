@@ -7,6 +7,8 @@ without a running Qt application.
 from arcane.components import Switch, connect, get_component_names
 from arcane.circuit_spec import build_circuit, load_circuit
 from arcane.simulation import simulate, flatten
+from arcane.spellwave import (DEFAULT_MAX_RANGE, DEFAULT_SPEED, DEFAULT_WIDTH,
+                              waves_from_cast_log)
 
 
 class SimulationSession:
@@ -17,9 +19,13 @@ class SimulationSession:
         self.registry = registry or {}
         self.source = source
         self.switch_events = {}          # switch name -> step index to toggle at
+        self.wave_settings = {"max_range": DEFAULT_MAX_RANGE,
+                              "speed": DEFAULT_SPEED, "width": DEFAULT_WIDTH}
         self.t = []
         self.Es = {}
         self.ET = []
+        self.cast_log = []
+        self.waves = []
 
     # -- construction helpers ------------------------------------------------
     @classmethod
@@ -81,8 +87,12 @@ class SimulationSession:
 
     def run(self, n_steps):
         self.reset_energy()
+        self.cast_log = []
         self.t, self.Es, self.ET = simulate(self.comp_list, n_steps,
-                                            events=self.build_events())
+                                            events=self.build_events(),
+                                            cast_log=self.cast_log)
+        self.waves = waves_from_cast_log(self.cast_log, n_steps,
+                                         **self.wave_settings)
         return self.t, self.Es, self.ET
 
     def reset_energy(self):
