@@ -1,10 +1,10 @@
 import pytest
 
 from arcane.components import (Battery, Wire, Resistor, Concentration, Switch,
-                               Caster, Blank, Junction, AndGate, OrGate,
-                               NotGate, connect)
+                               Caster, Blank, AndGate, OrGate,
+                               XorGate, NandGate, NotGate, connect)
 from arcane.exceptions import CircuitException
-from arcane.simulation import step_all, total_energy
+from arcane.util.simulation import step_all, total_energy
 
 
 def run(circuit, n_steps, events=None):
@@ -110,6 +110,36 @@ def test_or_gate_passes_any_input():
     circuit = connect([b, [live, quiet], g, c])
     run(circuit, 40)
     assert c.energy > 0
+
+
+def test_xor_gate_passes_exactly_one_hot_input():
+    b = Battery(1, name='b')
+    quiet = Switch(1, name='quiet', start_on=False)
+    live = Blank(1, name='live')
+    g = XorGate(2, level=1, name='g')
+    c = Caster(1, name='c')
+    circuit = connect([b, [live, quiet], g, c])
+    run(circuit, 40)
+    assert c.energy > 0          # exactly one input hot: passes
+    quiet.toggle()
+    xor_energy_both_hot = c.energy
+    run(circuit, 40)
+    assert c.energy == xor_energy_both_hot  # both hot: gate closes, no growth
+
+
+def test_nand_gate_blocks_only_when_all_inputs_hot():
+    b = Battery(1, name='b')
+    quiet = Switch(1, name='quiet', start_on=False)
+    live = Blank(1, name='live')
+    g = NandGate(2, level=1, name='g')
+    c = Caster(1, name='c')
+    circuit = connect([b, [live, quiet], g, c])
+    run(circuit, 40)
+    assert c.energy > 0          # not all inputs hot: passes
+    quiet.toggle()
+    nand_energy_before_all_hot = c.energy
+    run(circuit, 40)
+    assert c.energy == nand_energy_before_all_hot  # all hot: gate closes
 
 
 def test_not_gate_emits_only_while_input_quiet():
