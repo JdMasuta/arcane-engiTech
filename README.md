@@ -47,14 +47,21 @@ arcane-gui            # console entry point
   on the *Spell propagation* tab: scrub P(x, t) toward max range, watch the
   renormalization constant A(t) climb, and see the classical model's energy
   blow up (the ultra-magic catastrophe) while the quantum model stays finite.
-  The math is written up in [docs/theory.md](docs/theory.md).
+  Tick **2D field** to render the full 2D wave field as an animated heatmap
+  instead of the 1D radial slice. The math is written up in
+  [docs/theory.md](docs/theory.md).
+- **Build circuits in-app.** *New circuit (builder)…* opens a structured tree
+  editor: add components (every constructor parameter gets a field), group
+  branches in parallel, nest groups, and Build validates the result through
+  the same pipeline as the JSON loader before loading it.
 - **Tune it.** Set the step count, log-scale the energy axis, show or hide the
   auto-inserted wires and junctions, schedule when each switch flips on, and
   set the spell wave's max range, speed, and packet width.
 - **Export.** Pick a frame rate, resolution, and duration, then render the
-  circuit animation — or the latest spell wave — to MP4 through manim. The
-  preview and the video use the same energy gradient, so what you scrub is
-  what you get.
+  circuit animation, the latest spell wave, or both together on one shared
+  timeline (*Render circuit + wave…*) to MP4 through manim. A busy indicator
+  runs while the render thread works. The preview and the video use the same
+  energy gradient, so what you scrub is what you get.
 
 ## Components
 
@@ -66,9 +73,9 @@ arcane-gui            # console entry point
 | `Concentration` | capacitor / focus crystal | Charges while releasing nothing; bursts downstream when full. `break_concentration()` dissipates whatever it holds (a failed concentration save). |
 | `Junction` | node / splitter | Splits or merges parallel branches (one side must have exactly 1 port). Created automatically by `connect()`. |
 | `Switch` | switch | Blocks flow until `toggle()`d on. |
-| `AndGate` / `OrGate` | logic gates | Merge N inputs into 1 output; pass energy only while their boolean rule over the energised inputs holds. Place directly after a branch list. |
+| `AndGate` / `OrGate` / `XorGate` / `NandGate` | logic gates | Merge N inputs into 1 output; pass energy only while their boolean rule over the energised inputs holds (all / any / exactly one / not all). Place directly after a branch list. |
 | `NotGate` | inverter | Emits from an internal reserve only while its input is quiet; the control signal that holds it shut is consumed. |
-| `Caster` | load / wand | Accumulates energy and casts (drains to zero) at its threshold. |
+| `Caster` | load / wand | Accumulates energy and casts (drains to zero) at its threshold. Optional `wave_range`/`wave_speed`/`wave_width` set the spell wave its casts spawn. |
 | `Blank` | test point | Inert energy bucket, handy for probing. |
 
 Every component carries a `level` (spell-level tier); `connect()` refuses to
@@ -103,9 +110,17 @@ circuit = connect([battery, [sensor_a, sensor_b], AndGate(2, level=2), caster])
 
 ## Circuits as JSON
 
-Circuits can be described as JSON instead of Python (see
-`examples/demo_circuit.json`). Objects with a `type` key become components;
-arrays nest like `connect()` branch lists.
+Circuits can be described as JSON instead of Python (see `examples/`).
+Objects with a `type` key become components; arrays nest like `connect()`
+branch lists — including branches inside branches
+(`examples/nested_branches.json`). Casters can carry per-spell wave
+parameters that override the studio's global settings
+(`examples/spell_wave_params.json`):
+
+```json
+{"type": "Caster", "level": 1, "name": "fireball",
+ "wave_range": 60, "wave_speed": 0.35, "wave_width": 4.0}
+```
 
 ```bash
 arcane-sim examples/demo_circuit.json --steps 200
@@ -119,20 +134,22 @@ circuit, registry = load_circuit("examples/demo_circuit.json")
 ## Rendering from code
 
 ```python
-from arcane import connect, simulate, render_circuit, render_wave, waves_from_cast_log
+from arcane import (connect, simulate, render_circuit, render_wave,
+                    render_combined, waves_from_cast_log, SpellWave2D)
 
 circuit = connect([...])
 casts = []
 t, Es, ET = simulate(circuit, 300, cast_log=casts)
 render_circuit(circuit, Es, "circuit.mp4", fps=60, quality="1080p", run_time=10)
 
-waves = waves_from_cast_log(casts, n_steps=300)
+waves = waves_from_cast_log(casts, n_steps=300)          # or wave_cls=SpellWave2D
 if waves:
     render_wave(waves[-1], "spell_wave.mp4", fps=60, quality="1080p")
+    render_combined(circuit, Es, waves[-1], "combined.mp4", fps=60)
 ```
 
 `quality` is one of `480p`, `720p`, `1080p`, `1440p`, `4k`. You can also render
-the bundled demo from the CLI with `manim -pql arcane/manim_scene.py DemoScene`.
+the bundled demo from the CLI with `manim -pql arcane/manim/circuit.py DemoScene`.
 
 ## The math: renormalized spell waves
 
@@ -148,19 +165,26 @@ implementation in `arcane/spellwave.py`.
 
 ```
 arcane/
-  components.py    circuit components and connect()/plot()
-  simulation.py    stepping + energy-history helpers (+ cast logging)
-  spellwave.py     renormalized wave-function spell model
-  circuit_spec.py  JSON circuit specs
-  layout.py        trace_layout(): reusable circuit geometry
-  theme.py         shared palette + energy gradient
-  manim_scene.py   circuit -> manim Scene
-  manim_wave.py    spell wave -> manim Scene
-  render.py        render Scenes to video (fps/quality control)
-  gui/             the PySide6 desktop studio
-docs/theory.md     the renormalized-wave-function formalization
-tests/             pytest suite
-examples/          sample JSON circuits
+  components/        one module per component, plus:
+    component.py       the base class
+    topology.py        connect() / check_level() / circuit walkers
+    plotting.py        the schematic renderer (plot / wrap_around)
+    __main__.py        the original demo: python -m arcane.components
+  util/
+    simulation.py      stepping + energy-history helpers (+ cast logging)
+    layout.py          trace_layout(): reusable circuit geometry
+    circuit_spec.py    JSON circuit specs (arcane-sim entry point)
+  manim/
+    circuit.py         circuit -> manim Scene (incl. combined scene)
+    wave.py            spell wave -> manim Scene (1D + 2D)
+    render.py          render Scenes to video (fps/quality control)
+  gui/               the PySide6 desktop studio (incl. the circuit builder)
+  spellwave.py       renormalized wave-function spell model (1D + 2D)
+  theme.py           shared palette + energy gradient
+  exceptions.py      CircuitException
+docs/theory.md       the renormalized-wave-function formalization
+tests/               pytest suite
+examples/            sample JSON circuits
 ```
 
 ## Tests
