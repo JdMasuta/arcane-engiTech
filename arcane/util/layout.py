@@ -19,16 +19,35 @@ def trace_layout(comp_list):
     record maps each component (and the WRAP_KEY sentinel for the wrap-around
     wire) to a list of 2xN xy segment arrays. bbox is (xmin, xmax, ymin, ymax).
     """
+    record, _decor, bbox = _trace(comp_list, capture_decor=False)
+    return record, bbox
+
+
+def trace_layout_with_decor(comp_list):
+    """Like trace_layout, but also captures each component's text labels
+    and circle patches (a LogicGate's label, the NOT gate's inversion
+    circle) as {"texts": [(x, y, string)], "circles": [(x, y, radius)]}
+    per component. Returns (record, decor, bbox). Used by the manim
+    converter to carry those decorations into rendered scenes; the GUI
+    preview doesn't need them and keeps using plain trace_layout.
+    """
+    return _trace(comp_list, capture_decor=True)
+
+
+def _trace(comp_list, capture_decor):
     fig, ax = plt.subplots()
     record = {}
-    circuit_plot(comp_list, ax=ax, record=record, show=False)
+    decor = {} if capture_decor else None
+    circuit_plot(comp_list, ax=ax, record=record, decor=decor, show=False)
     plt.close(fig)
     all_segs = [seg for segs in record.values() for seg in segs]
     if not all_segs:
-        return record, (0.0, 1.0, 0.0, 1.0)
-    xs = np.concatenate([seg[0] for seg in all_segs])
-    ys = np.concatenate([seg[1] for seg in all_segs])
-    return record, (float(xs.min()), float(xs.max()), float(ys.min()), float(ys.max()))
+        bbox = (0.0, 1.0, 0.0, 1.0)
+    else:
+        xs = np.concatenate([seg[0] for seg in all_segs])
+        ys = np.concatenate([seg[1] for seg in all_segs])
+        bbox = (float(xs.min()), float(xs.max()), float(ys.min()), float(ys.max()))
+    return record, (decor if decor is not None else {}), bbox
 
 
 def bbox_center_scale(bbox, frame_width, frame_height):
