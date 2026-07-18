@@ -1,7 +1,7 @@
 import pytest
 
 from arcane.components import Battery, Blank, Caster, Switch, Resistor, connect
-from arcane.simulation import flatten, step_all, total_energy
+from arcane.util.simulation import flatten, step_all, total_energy
 
 
 def casts_accounted_total(circuit, n_steps):
