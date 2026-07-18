@@ -3,7 +3,7 @@ from matplotlib.lines import Line2D
 import numpy as np
 
 from arcane import theme
-from arcane.layout import trace_layout, WRAP_KEY
+from arcane.util.layout import trace_layout, WRAP_KEY
 from arcane.gui.mpl_canvas import ThemedCanvas
 
 
