@@ -1,7 +1,8 @@
 """Left-hand control panel: circuit source, simulation, and render settings."""
 from PySide6 import QtCore, QtWidgets
 
-from arcane.render import QUALITY_PRESETS, DEFAULT_QUALITY
+from arcane.render import DEFAULT_QUALITY
+from arcane.spellwave import DEFAULT_MAX_RANGE, DEFAULT_SPEED, DEFAULT_WIDTH
 
 
 class ControlPanel(QtWidgets.QScrollArea):
@@ -9,6 +10,8 @@ class ControlPanel(QtWidgets.QScrollArea):
     exampleRequested = QtCore.Signal()
     runRequested = QtCore.Signal(int)
     renderRequested = QtCore.Signal(dict)
+    waveRenderRequested = QtCore.Signal(dict)
+    waveSettingsChanged = QtCore.Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -26,6 +29,7 @@ class ControlPanel(QtWidgets.QScrollArea):
         root.addWidget(self._source_group())
         root.addWidget(self._simulation_group())
         root.addWidget(self._switch_group())
+        root.addWidget(self._wave_group())
         root.addWidget(self._render_group())
         root.addStretch(1)
 
@@ -92,6 +96,33 @@ class ControlPanel(QtWidgets.QScrollArea):
         lay.addLayout(self.switch_form)
         return self.switch_group
 
+    def _wave_group(self):
+        group = QtWidgets.QGroupBox("Spell wave")
+        form = QtWidgets.QFormLayout(group)
+        self.range_spin = QtWidgets.QDoubleSpinBox()
+        self.range_spin.setRange(5.0, 500.0)
+        self.range_spin.setValue(DEFAULT_MAX_RANGE)
+        form.addRow("Max range", self.range_spin)
+
+        self.speed_spin = QtWidgets.QDoubleSpinBox()
+        self.speed_spin.setRange(0.05, 10.0)
+        self.speed_spin.setSingleStep(0.05)
+        self.speed_spin.setValue(DEFAULT_SPEED)
+        form.addRow("Speed", self.speed_spin)
+
+        self.width_spin = QtWidgets.QDoubleSpinBox()
+        self.width_spin.setRange(0.5, 20.0)
+        self.width_spin.setSingleStep(0.5)
+        self.width_spin.setValue(DEFAULT_WIDTH)
+        form.addRow("Packet width", self.width_spin)
+
+        self.classical_check = QtWidgets.QCheckBox("Show classical model")
+        self.classical_check.setChecked(True)
+        self.classical_check.toggled.connect(
+            lambda _: self.waveSettingsChanged.emit())
+        form.addRow(self.classical_check)
+        return group
+
     def _render_group(self):
         group = QtWidgets.QGroupBox("Manim render")
         form = QtWidgets.QFormLayout(group)
@@ -111,10 +142,17 @@ class ControlPanel(QtWidgets.QScrollArea):
         self.runtime_spin.setSuffix(" s")
         form.addRow("Duration", self.runtime_spin)
 
-        self.render_button = QtWidgets.QPushButton("Render video…")
+        self.render_button = QtWidgets.QPushButton("Render circuit…")
         self.render_button.setEnabled(False)
         self.render_button.clicked.connect(self._emit_render)
         form.addRow(self.render_button)
+
+        self.wave_render_button = QtWidgets.QPushButton("Render spell wave…")
+        self.wave_render_button.setEnabled(False)
+        self.wave_render_button.setToolTip("Renders the most recently cast "
+                                           "spell wave")
+        self.wave_render_button.clicked.connect(self._emit_wave_render)
+        form.addRow(self.wave_render_button)
 
         self.render_status = QtWidgets.QLabel("")
         self.render_status.setObjectName("Subtitle")
@@ -155,12 +193,29 @@ class ControlPanel(QtWidgets.QScrollArea):
     def fps(self):
         return self.fps_spin.value()
 
-    def _emit_render(self):
-        self.renderRequested.emit({
+    def read_wave_settings(self):
+        return {
+            "max_range": self.range_spin.value(),
+            "speed": self.speed_spin.value(),
+            "width": self.width_spin.value(),
+        }
+
+    @property
+    def show_classical(self):
+        return self.classical_check.isChecked()
+
+    def _render_options(self):
+        return {
             "fps": self.fps_spin.value(),
             "quality": self.quality_combo.currentText(),
             "run_time": self.runtime_spin.value(),
-        })
+        }
+
+    def _emit_render(self):
+        self.renderRequested.emit(self._render_options())
+
+    def _emit_wave_render(self):
+        self.waveRenderRequested.emit(self._render_options())
 
 
 def _describe_source(session):
