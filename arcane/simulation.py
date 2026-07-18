@@ -25,27 +25,50 @@ def total_energy(comp_list):
     return sum(comp.energy for comp in flatten(comp_list))
 
 
-def simulate(comp_list, n_steps, events=None):
+def simulate(comp_list, n_steps, events=None, cast_log=None):
     """Step the circuit n_steps times, recording per-component energy.
 
     events maps a step index to a callable fired before that step runs
     (e.g. {50: switch.toggle}). Returns (t, Es, ET) where Es maps component
     name to its energy series and ET is the total energy series.
+
+    When cast_log is a list, every Caster firing during the run appends
+    {"step": i, "caster": name, "energy": consumed} to it, so callers can
+    spawn spell waves (or count discharges) without instrumenting casters
+    themselves.
     """
+    from arcane.components import Caster
+
     events = events or {}
     comps = flatten(comp_list)
     t = []
     Es = {comp.name: [] for comp in comps}
     ET = []
-    for step_i in range(n_steps):
-        if step_i in events:
-            events[step_i]()
-        for comp in comps:
-            Es[comp.name].append(comp.energy)
-        ET.append(sum(comp.energy for comp in comps))
-        t.append(step_i)
-        for comp in comps:
-            comp.step()
+    clock = {"step": 0}
+    wrapped = []
+    if cast_log is not None:
+        for caster in (c for c in comps if isinstance(c, Caster)):
+            def logging_cast(c=caster):
+                if c.energy >= c.cast_threshold:
+                    cast_log.append({"step": clock["step"], "caster": c.name,
+                                     "energy": c.energy})
+                return Caster.cast(c)
+            caster.cast = logging_cast
+            wrapped.append(caster)
+    try:
+        for step_i in range(n_steps):
+            clock["step"] = step_i
+            if step_i in events:
+                events[step_i]()
+            for comp in comps:
+                Es[comp.name].append(comp.energy)
+            ET.append(sum(comp.energy for comp in comps))
+            t.append(step_i)
+            for comp in comps:
+                comp.step()
+    finally:
+        for caster in wrapped:
+            del caster.cast
     return t, Es, ET
 
 
