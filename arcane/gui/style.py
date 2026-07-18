@@ -122,6 +122,24 @@ QProgressBar::chunk {{
 QScrollArea {{
     border: none;
 }}
+QTabWidget::pane {{
+    border: none;
+}}
+QTabBar::tab {{
+    background: #{theme.SURFACE};
+    color: #{theme.TEXT_MUTED};
+    border: 1px solid #{theme.BORDER};
+    border-bottom: none;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    padding: 6px 16px;
+    margin-right: 4px;
+}}
+QTabBar::tab:selected {{
+    background: #{theme.SURFACE_LIGHT};
+    color: #{theme.TEXT};
+    border-color: #{theme.ACCENT};
+}}
 QStatusBar {{
     color: #{theme.TEXT_MUTED};
 }}
