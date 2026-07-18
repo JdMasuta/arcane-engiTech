@@ -1,17 +1,26 @@
 [x] Add functionality to allow two junctions to meet
 [x] Add resistors
 [x] Add Concentration Components
-[x] Logic Gates
-[x] Manim converter (arcane/manim_scene.py)
-[x] JSON circuit descriptions (arcane/circuit_spec.py)
+[x] Logic Gates (AND/OR/NOT, then XOR/NAND)
+[x] Manim converter (arcane/manim/circuit.py)
+[x] JSON circuit descriptions (arcane/util/circuit_spec.py)
 [x] Desktop studio: circuit + energy views, scrubbing, manim export (arcane/gui)
 [x] Renormalized spell-wave model: casts spawn P = A(t)|Psi|^2 wave packets
     with the ultra-magic-catastrophe comparison (arcane/spellwave.py)
-[ ] Per-caster wave parameters (max range/speed/width) via the JSON spec
-[ ] 2D spell waves and a combined circuit + wave manim scene
-[ ] In-app circuit editor (place/connect components without writing JSON)
-[ ] Carry text labels and patch decorations (NOT gate circle) into manim scenes
-[ ] Live render progress bar wired to manim's progress callbacks
-[ ] Nested branch lists inside branches are untested in the manim converter
-[ ] Smarter junction splitting (respect downstream max_energy in the remainder pass)
-[ ] XOR / NAND gates if a circuit ever needs them
+[x] Per-caster wave parameters (max range/speed/width) via the JSON spec
+[x] 2D spell waves (SpellWave2D) and a combined circuit + wave manim scene
+[x] In-app circuit builder (arcane/gui/builder.py)
+[x] Carry text labels and patch decorations (NOT gate circle) into manim scenes
+[x] Render busy indicator in the GUI (manim's Python API exposes no
+    per-frame callback, so it is indeterminate rather than a percentage)
+[x] Nested branch lists inside branches (fixed check_level, tested end to end)
+[x] Smarter junction splitting (capped water-fill respecting max_energy)
+[x] XOR / NAND gates
+[x] Reorganise into sub-libraries: arcane/components (one file per
+    component), arcane/manim, arcane/util
+
+Remaining / future work:
+[ ] Verify all manim scenes against a real manim install (this environment
+    cannot install manim, so scenes are tested via a fake-manim harness only)
+[ ] True per-frame render progress once manim exposes a progress callback
+[ ] Free-form drag-and-drop circuit canvas (the builder is a structured tree)
