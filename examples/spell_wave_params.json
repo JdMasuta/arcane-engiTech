@@ -1,0 +1,11 @@
+{
+    "circuit": [
+        {"type": "Battery", "level": 1, "name": "battery", "energy": 800},
+        [
+            [{"type": "Caster", "level": 1, "name": "dagger throw",
+              "wave_range": 12, "wave_speed": 1.5, "wave_width": 1.0}],
+            [{"type": "Caster", "level": 1, "name": "fireball",
+              "wave_range": 60, "wave_speed": 0.35, "wave_width": 4.0}]
+        ]
+    ]
+}
