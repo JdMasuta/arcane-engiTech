@@ -2,11 +2,11 @@ import os
 
 import pytest
 
-from arcane.circuit_spec import build_circuit, load_circuit
+from arcane.util.circuit_spec import build_circuit, load_circuit
 from arcane.exceptions import CircuitException
-from arcane.manim_scene import MANIM_AVAILABLE, make_circuit_scene
-from arcane.layout import trace_layout
-from arcane.simulation import simulate
+from arcane.manim.circuit import MANIM_AVAILABLE, make_circuit_scene
+from arcane.util.layout import trace_layout
+from arcane.util.simulation import simulate
 
 EXAMPLE = os.path.join(os.path.dirname(__file__), os.pardir, 'examples', 'demo_circuit.json')
 
