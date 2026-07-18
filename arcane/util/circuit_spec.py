@@ -22,12 +22,13 @@ import json
 
 from arcane.components import (Battery, Wire, Resistor, Concentration, Switch,
                                Caster, Blank, Junction, AndGate, OrGate,
-                               NotGate, connect, plot)
+                               XorGate, NandGate, NotGate, connect, plot)
 from arcane.exceptions import CircuitException
 
 COMPONENT_TYPES = {cls.__name__: cls for cls in
                    (Battery, Wire, Resistor, Concentration, Switch, Caster,
-                    Blank, Junction, AndGate, OrGate, NotGate)}
+                    Blank, Junction, AndGate, OrGate, XorGate, NandGate,
+                    NotGate)}
 
 
 def build_circuit(spec, registry=None):
@@ -76,7 +77,7 @@ def load_circuit(path, do_connect=True, verbose=False):
 def main(argv=None):
     import argparse
     import matplotlib.pyplot as plt
-    from arcane.simulation import simulate, plot_history
+    from arcane.util.simulation import simulate, plot_history
 
     parser = argparse.ArgumentParser(description="Load, draw, and simulate a JSON circuit spec")
     parser.add_argument("spec", help="path to the JSON spec file")
