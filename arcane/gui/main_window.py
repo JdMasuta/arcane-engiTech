@@ -1,7 +1,7 @@
 """Main application window wiring the panels, canvases, and transport."""
 from PySide6 import QtCore, QtWidgets
 
-from arcane.manim_scene import MANIM_AVAILABLE
+from arcane.manim import MANIM_AVAILABLE
 from arcane.gui.circuit_view import CircuitView
 from arcane.gui.controls import ControlPanel
 from arcane.gui.energy_view import EnergyView
@@ -23,9 +23,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.controls.setFixedWidth(320)
         self.controls.loadRequested.connect(self._load_from_dialog)
         self.controls.exampleRequested.connect(self._load_demo)
+        self.controls.builderRequested.connect(self._open_builder)
         self.controls.runRequested.connect(self._run_simulation)
         self.controls.renderRequested.connect(self._start_render)
         self.controls.waveRenderRequested.connect(self._start_wave_render)
+        self.controls.combinedRenderRequested.connect(self._start_combined_render)
         self.controls.waveSettingsChanged.connect(self._refresh_wave_view)
 
         self.circuit_view = CircuitView()
@@ -102,6 +104,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self._set_session(session)
         self._set_status(f"Loaded {path}. Press Run simulation.")
 
+    def _open_builder(self):
+        from arcane.gui.builder import CircuitBuilderDialog
+
+        dialog = CircuitBuilderDialog(self)
+        if dialog.exec() != QtWidgets.QDialog.Accepted or dialog.result_spec is None:
+            return
+        session = SimulationSession.from_spec_dict(dialog.result_spec,
+                                                   source="built circuit")
+        self._set_session(session)
+        self._set_status("Built a new circuit. Press Run simulation.")
+
     def _set_session(self, session):
         self.session = session
         self.controls.bind_session(session)
@@ -112,6 +125,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.transport.configure(0, self.controls.run_time, self.controls.fps)
         self.controls.render_button.setEnabled(False)
         self.controls.wave_render_button.setEnabled(False)
+        self.controls.combined_render_button.setEnabled(False)
 
     # -- simulation ----------------------------------------------------------
     def _run_simulation(self, n_steps):
@@ -119,6 +133,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         self.session.switch_events = self.controls.read_switch_events()
         self.session.wave_settings = self.controls.read_wave_settings()
+        self.session.wave_2d = self.controls.use_2d_waves
         t, Es, ET = self.session.run(n_steps)
         names = self.session.component_names(
             include_plumbing=self.controls.plumbing_check.isChecked())
@@ -131,6 +146,8 @@ class MainWindow(QtWidgets.QMainWindow):
                                  self.controls.fps)
         self.controls.render_button.setEnabled(MANIM_AVAILABLE)
         self.controls.wave_render_button.setEnabled(
+            MANIM_AVAILABLE and bool(self.session.waves))
+        self.controls.combined_render_button.setEnabled(
             MANIM_AVAILABLE and bool(self.session.waves))
         n_casts = len(self.session.cast_log)
         self._set_status(f"Simulated {n_steps} steps · {len(names)} tracked "
@@ -157,7 +174,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.session is None or not self.session.has_run():
             self._set_status("Run a simulation before rendering.")
             return
-        from arcane.render import render_circuit
+        from arcane.manim.render import render_circuit
 
         session = self.session
 
@@ -172,7 +189,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self._set_status("Run a simulation that casts before rendering "
                              "a spell wave.")
             return
-        from arcane.render import render_wave
+        from arcane.manim.render import render_wave
 
         wave = max(self.session.waves, key=lambda w: w.start_step)
 
@@ -182,6 +199,22 @@ class MainWindow(QtWidgets.QMainWindow):
                                run_time=opts["run_time"])
         self._launch_render(job, "spell_wave.mp4")
 
+    def _start_combined_render(self, options):
+        if self.session is None or not self.session.waves:
+            self._set_status("Run a simulation that casts before rendering "
+                             "circuit + wave.")
+            return
+        from arcane.manim.render import render_combined
+
+        session = self.session
+        wave = max(self.session.waves, key=lambda w: w.start_step)
+
+        def job(path, opts=options):
+            return render_combined(session.comp_list, session.Es, wave, path,
+                                   fps=opts["fps"], quality=opts["quality"],
+                                   run_time=opts["run_time"])
+        self._launch_render(job, "arcane_combined.mp4")
+
     def _launch_render(self, job, default_name):
         path, _ = QtWidgets.QFileDialog.getSaveFileName(
             self, "Render video to", default_name, "MP4 video (*.mp4)")
@@ -189,6 +222,8 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         self.controls.render_button.setEnabled(False)
         self.controls.wave_render_button.setEnabled(False)
+        self.controls.combined_render_button.setEnabled(False)
+        self.controls.render_progress.setVisible(True)
         self.controls.render_status.setText("Rendering… this can take a while.")
         self._render_worker = RenderWorker(lambda: job(path))
         self._render_worker.finished_ok.connect(self._on_render_done)
@@ -196,18 +231,21 @@ class MainWindow(QtWidgets.QMainWindow):
         self._render_worker.start()
 
     def _on_render_done(self, path):
+        self.controls.render_progress.setVisible(False)
         self.controls.render_status.setText(f"Saved {path}")
         self._restore_render_buttons()
         self._set_status(f"Render complete: {path}")
 
     def _on_render_failed(self, message):
+        self.controls.render_progress.setVisible(False)
         self.controls.render_status.setText(f"Render failed: {message}")
         self._restore_render_buttons()
 
     def _restore_render_buttons(self):
+        has_waves = bool(self.session and self.session.waves)
         self.controls.render_button.setEnabled(MANIM_AVAILABLE)
-        self.controls.wave_render_button.setEnabled(
-            MANIM_AVAILABLE and bool(self.session and self.session.waves))
+        self.controls.wave_render_button.setEnabled(MANIM_AVAILABLE and has_waves)
+        self.controls.combined_render_button.setEnabled(MANIM_AVAILABLE and has_waves)
 
     def _set_status(self, message):
         self.status.showMessage(message)
