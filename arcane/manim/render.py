@@ -7,7 +7,7 @@ file directly, without shelling out to the manim CLI.
 import shutil
 from pathlib import Path
 
-from arcane.manim_scene import MANIM_AVAILABLE, make_circuit_scene
+from arcane.manim.circuit import MANIM_AVAILABLE, make_circuit_scene, make_combined_scene
 
 # Resolution presets, mirrored from manim's own quality flags so the GUI can
 # offer them by name. Frame rate is chosen separately.
@@ -70,13 +70,29 @@ def render_circuit(comp_list, Es, output_path, fps=30, quality=DEFAULT_QUALITY,
 
 def render_wave(wave, output_path, fps=30, quality=DEFAULT_QUALITY,
                 run_time=8.0, progress=False):
-    """Render one SpellWave's renormalized propagation to output_path.
+    """Render one spell wave's renormalized propagation to output_path.
 
-    Same fps/quality semantics as render_circuit.
+    wave is a SpellWave or SpellWave2D; same fps/quality semantics as
+    render_circuit.
     """
-    from arcane.manim_wave import make_spellwave_scene
+    from arcane.manim.wave import make_spellwave_scene
 
     _check_render_inputs(quality)
     name = Path(output_path).stem or "SpellWaveScene"
     scene_cls = make_spellwave_scene(wave, run_time=run_time, name=name)
+    return _render_scene(scene_cls, output_path, fps, quality, progress)
+
+
+def render_combined(comp_list, Es, wave, output_path, fps=30,
+                    quality=DEFAULT_QUALITY, run_time=10.0, progress=False):
+    """Render the circuit schematic and the spell wave it cast together,
+    one above the other, sharing a single timeline.
+
+    wave must come from the same run that produced Es (see
+    simulation.simulate(cast_log=...) and spellwave.waves_from_cast_log()).
+    Same fps/quality semantics as render_circuit.
+    """
+    _check_render_inputs(quality)
+    name = Path(output_path).stem or "ArcaneCombinedScene"
+    scene_cls = make_combined_scene(comp_list, Es, wave, run_time=run_time, name=name)
     return _render_scene(scene_cls, output_path, fps, quality, progress)
