@@ -21,7 +21,7 @@ dev = ["pytest", "PySide6"]
 
 [project.scripts]
 arcane-gui = "arcane.gui.app:main"
-arcane-sim = "arcane.circuit_spec:main"
+arcane-sim = "arcane.util.circuit_spec:main"
 
 [tool.setuptools.packages.find]
 include = ["arcane*"]
