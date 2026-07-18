@@ -5,6 +5,10 @@
 [x] Manim converter (arcane/manim_scene.py)
 [x] JSON circuit descriptions (arcane/circuit_spec.py)
 [x] Desktop studio: circuit + energy views, scrubbing, manim export (arcane/gui)
+[x] Renormalized spell-wave model: casts spawn P = A(t)|Psi|^2 wave packets
+    with the ultra-magic-catastrophe comparison (arcane/spellwave.py)
+[ ] Per-caster wave parameters (max range/speed/width) via the JSON spec
+[ ] 2D spell waves and a combined circuit + wave manim scene
 [ ] In-app circuit editor (place/connect components without writing JSON)
 [ ] Carry text labels and patch decorations (NOT gate circle) into manim scenes
 [ ] Live render progress bar wired to manim's progress callbacks
