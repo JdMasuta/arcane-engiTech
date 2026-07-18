@@ -1,16 +1,18 @@
 """Left-hand control panel: circuit source, simulation, and render settings."""
 from PySide6 import QtCore, QtWidgets
 
-from arcane.render import DEFAULT_QUALITY
+from arcane.manim.render import DEFAULT_QUALITY
 from arcane.spellwave import DEFAULT_MAX_RANGE, DEFAULT_SPEED, DEFAULT_WIDTH
 
 
 class ControlPanel(QtWidgets.QScrollArea):
     loadRequested = QtCore.Signal()
     exampleRequested = QtCore.Signal()
+    builderRequested = QtCore.Signal()
     runRequested = QtCore.Signal(int)
     renderRequested = QtCore.Signal(dict)
     waveRenderRequested = QtCore.Signal(dict)
+    combinedRenderRequested = QtCore.Signal(dict)
     waveSettingsChanged = QtCore.Signal()
 
     def __init__(self, parent=None):
@@ -57,9 +59,12 @@ class ControlPanel(QtWidgets.QScrollArea):
         load_btn.clicked.connect(self.loadRequested)
         example_btn = QtWidgets.QPushButton("Load demo circuit")
         example_btn.clicked.connect(self.exampleRequested)
+        build_btn = QtWidgets.QPushButton("New circuit (builder)…")
+        build_btn.clicked.connect(self.builderRequested)
         lay.addWidget(self.source_label)
         lay.addWidget(load_btn)
         lay.addWidget(example_btn)
+        lay.addWidget(build_btn)
         return group
 
     def _simulation_group(self):
@@ -121,6 +126,12 @@ class ControlPanel(QtWidgets.QScrollArea):
         self.classical_check.toggled.connect(
             lambda _: self.waveSettingsChanged.emit())
         form.addRow(self.classical_check)
+
+        self.field_2d_check = QtWidgets.QCheckBox("2D field")
+        self.field_2d_check.setToolTip("Render the full 2D wave field "
+                                       "instead of the 1D radial slice. "
+                                       "Takes effect on the next run.")
+        form.addRow(self.field_2d_check)
         return group
 
     def _render_group(self):
@@ -153,6 +164,22 @@ class ControlPanel(QtWidgets.QScrollArea):
                                            "spell wave")
         self.wave_render_button.clicked.connect(self._emit_wave_render)
         form.addRow(self.wave_render_button)
+
+        self.combined_render_button = QtWidgets.QPushButton("Render circuit + wave…")
+        self.combined_render_button.setEnabled(False)
+        self.combined_render_button.setToolTip("Renders the circuit schematic "
+                                               "above the most recently cast "
+                                               "spell wave, one timeline")
+        self.combined_render_button.clicked.connect(self._emit_combined_render)
+        form.addRow(self.combined_render_button)
+
+        # manim's Python API exposes no per-frame callback, so this is an
+        # honest busy indicator (indeterminate) rather than a percentage
+        self.render_progress = QtWidgets.QProgressBar()
+        self.render_progress.setRange(0, 0)
+        self.render_progress.setTextVisible(False)
+        self.render_progress.setVisible(False)
+        form.addRow(self.render_progress)
 
         self.render_status = QtWidgets.QLabel("")
         self.render_status.setObjectName("Subtitle")
@@ -204,6 +231,10 @@ class ControlPanel(QtWidgets.QScrollArea):
     def show_classical(self):
         return self.classical_check.isChecked()
 
+    @property
+    def use_2d_waves(self):
+        return self.field_2d_check.isChecked()
+
     def _render_options(self):
         return {
             "fps": self.fps_spin.value(),
@@ -216,6 +247,9 @@ class ControlPanel(QtWidgets.QScrollArea):
 
     def _emit_wave_render(self):
         self.waveRenderRequested.emit(self._render_options())
+
+    def _emit_combined_render(self):
+        self.combinedRenderRequested.emit(self._render_options())
 
 
 def _describe_source(session):
