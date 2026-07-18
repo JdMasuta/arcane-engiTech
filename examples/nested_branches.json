@@ -1,0 +1,16 @@
+{
+    "circuit": [
+        {"type": "Battery", "level": 1, "name": "battery", "energy": 500},
+        [
+            [{"type": "Blank", "level": 1, "name": "sensor path"}],
+            [
+                {"type": "Blank", "level": 1, "name": "junction relay"},
+                [
+                    [{"type": "Caster", "level": 1, "name": "caster 1"}],
+                    [{"type": "Caster", "level": 1, "name": "caster 2"}]
+                ]
+            ]
+        ],
+        {"type": "Caster", "level": 1, "name": "main caster"}
+    ]
+}
