@@ -67,3 +67,34 @@ def test_plumbing_toggle_controls_tracked_names(app_window):
     full = window.session.component_names(include_plumbing=True)
     assert len(full) > len(lean)
     assert all("wire" not in n and "junction" not in n for n in lean)
+
+
+def test_demo_run_spawns_spell_waves(app_window):
+    app, window = app_window
+    window._load_demo()
+    window._run_simulation(300)
+    assert window.session.cast_log, "demo circuit should cast at least once"
+    assert len(window.session.waves) == len(window.session.cast_log)
+    wave = window.session.waves[0]
+    assert wave.start_step == window.session.cast_log[0]["step"]
+    # wave tab exists and scrubbing to mid-flight fills the readout
+    assert window.lower_tabs.count() == 2
+    mid = wave.start_step + int(wave.flight_time() * 0.5)
+    window.transport.slider.setValue(mid)
+    assert "A(t)" in window.wave_view._readout.get_text()
+    # without manim installed the wave render stays disabled
+    from arcane.manim_scene import MANIM_AVAILABLE
+    assert window.controls.wave_render_button.isEnabled() == MANIM_AVAILABLE
+
+
+def test_wave_settings_flow_into_new_runs(app_window):
+    app, window = app_window
+    window._load_demo()
+    window.controls.range_spin.setValue(50.0)
+    window.controls.speed_spin.setValue(1.0)
+    window._run_simulation(300)
+    assert window.session.wave_settings["max_range"] == 50.0
+    if window.session.waves:
+        assert window.session.waves[0].max_range == 50.0
+    window.controls.range_spin.setValue(30.0)
+    window.controls.speed_spin.setValue(0.5)
