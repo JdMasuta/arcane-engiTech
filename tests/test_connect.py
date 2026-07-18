@@ -1,9 +1,9 @@
 import pytest
 
-from arcane.components import (Battery, Wire, Blank, Caster, Junction, AndGate,
+from arcane.components import (Battery, Blank, Caster, Junction, AndGate,
                                connect, check_level, get_component_names, plot)
 from arcane.exceptions import CircuitException
-from arcane.simulation import step_all
+from arcane.util.simulation import step_all
 
 
 def test_junction_rejects_multi_in_multi_out():
@@ -29,7 +29,7 @@ def test_connect_links_component_into_opening_junction():
     # regression: next_component typo left next_comp unset
     b = Battery(1, name='b')
     c1, c2 = Caster(1, name='c1'), Caster(1, name='c2')
-    circuit = connect([b, [c1, c2]])
+    connect([b, [c1, c2]])
     assert isinstance(b.next_comp, Junction)
     assert b.next_comp.previous_comp == [b]
 
@@ -45,6 +45,43 @@ def test_junction_step_with_all_outputs_full_does_not_divide_by_zero():
     j.next_comp = [full_a, full_b]
     j.energy = 1
     j.step()  # must not raise
+
+
+def test_junction_step_never_overfills_and_spills_over_to_other_outputs():
+    # a low-capacity output can't take a full even share; the old code
+    # either force-fed it past max_energy or dropped it and force-fed the
+    # remainder onto the other outputs, both of which could overfill them
+    j = Junction(1, 2, name='j')
+    src = Battery(1, name='src')
+    tight = Blank(1, name='tight')
+    tight.max_energy = 2
+    tight.energy = 1.5           # only 0.5 of headroom
+    roomy = Blank(1, name='roomy')
+    roomy.max_energy = 1000
+    j.previous_comp = [src]
+    j.next_comp = [tight, roomy]
+    j.energy = 10
+    j.step()
+    assert tight.energy == pytest.approx(2.0)      # filled exactly to capacity
+    assert tight.energy <= tight.max_energy
+    assert roomy.energy == pytest.approx(9.5)      # absorbed the spillover
+    assert j.energy == pytest.approx(0.0)          # fully conserved, none lost
+
+
+def test_junction_step_leaves_unplaceable_energy_in_junction():
+    # if every output is already full, energy stays put rather than vanishing
+    j = Junction(1, 2, name='j')
+    src = Battery(1, name='src')
+    full_a, full_b = Blank(1, name='a'), Blank(1, name='b')
+    full_a.energy = full_a.max_energy
+    full_b.energy = full_b.max_energy
+    j.previous_comp = [src]
+    j.next_comp = [full_a, full_b]
+    j.energy = 3
+    j.step()
+    assert j.energy == pytest.approx(3.0)
+    assert full_a.energy == full_a.max_energy
+    assert full_b.energy == full_b.max_energy
 
 
 def test_connect_is_silent_by_default(capsys):
