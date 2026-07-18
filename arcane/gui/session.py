@@ -4,11 +4,11 @@ Keeping the circuit, its history, and the scheduled switch events in one
 plain object means the widgets stay thin and the logic stays unit-testable
 without a running Qt application.
 """
-from arcane.components import Switch, connect, get_component_names
-from arcane.circuit_spec import build_circuit, load_circuit
-from arcane.simulation import simulate, flatten
+from arcane.components import Caster, Switch, connect, get_component_names
+from arcane.util.circuit_spec import build_circuit, load_circuit
+from arcane.util.simulation import simulate, flatten
 from arcane.spellwave import (DEFAULT_MAX_RANGE, DEFAULT_SPEED, DEFAULT_WIDTH,
-                              waves_from_cast_log)
+                              SpellWave2D, waves_from_cast_log)
 
 
 class SimulationSession:
@@ -21,6 +21,7 @@ class SimulationSession:
         self.switch_events = {}          # switch name -> step index to toggle at
         self.wave_settings = {"max_range": DEFAULT_MAX_RANGE,
                               "speed": DEFAULT_SPEED, "width": DEFAULT_WIDTH}
+        self.wave_2d = False              # SpellWave (1D) vs SpellWave2D per run
         self.t = []
         self.Es = {}
         self.ET = []
@@ -85,14 +86,34 @@ class SimulationSession:
                 events.setdefault(step, []).append(switch.toggle)
         return {step: _chain(calls) for step, calls in events.items()}
 
+    def caster_wave_overrides(self):
+        """Per-caster wave-parameter overrides sourced from each Caster's
+        own wave_range/wave_speed/wave_width (e.g. set via a JSON spec),
+        keyed by caster name for waves_from_cast_log."""
+        overrides = {}
+        for caster in (c for c in flatten(self.comp_list) if isinstance(c, Caster)):
+            entry = {}
+            if caster.wave_range is not None:
+                entry["max_range"] = caster.wave_range
+            if caster.wave_speed is not None:
+                entry["speed"] = caster.wave_speed
+            if caster.wave_width is not None:
+                entry["width"] = caster.wave_width
+            if entry:
+                overrides[caster.name] = entry
+        return overrides
+
     def run(self, n_steps):
         self.reset_energy()
         self.cast_log = []
         self.t, self.Es, self.ET = simulate(self.comp_list, n_steps,
                                             events=self.build_events(),
                                             cast_log=self.cast_log)
-        self.waves = waves_from_cast_log(self.cast_log, n_steps,
-                                         **self.wave_settings)
+        self.waves = waves_from_cast_log(
+            self.cast_log, n_steps,
+            overrides_by_caster=self.caster_wave_overrides(),
+            wave_cls=SpellWave2D if self.wave_2d else None,
+            **self.wave_settings)
         return self.t, self.Es, self.ET
 
     def reset_energy(self):
