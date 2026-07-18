@@ -54,12 +54,26 @@ step = one time unit) on a 1D grid x ∈ [0, 1.15·R]:
 | The spell ending | **Fizzle**: when N(t) < `fizzle_norm` the spell is spent; P is zero afterwards. |
 | The ultra-magic catastrophe | The classical comparison series σ_cl(t) = σ₀·(1 − t/t_flight) with E_cl ∝ E/σ_cl², which blows up ~10⁸× at arrival while the renormalized total stays exactly E_cast. |
 
+## Two dimensions
+
+`SpellWave2D` generalizes the same construction to the plane: an
+isotropically spreading Gaussian packet travelling in +x, attenuated by a
+radial absorber D(r) = exp(−(r/R)⁶/2) with r the true distance from the
+caster, renormalized by A(t) = 1/∬|Ψ|²dxdy so that ∬P dxdy = 1 at every
+alive step. Nothing about the argument changes — the catastrophe, the
+broken normalization, and the fix are dimension-independent — the 2D field
+just makes for a better picture of a spell washing over an area.
+
 In the studio, every `Caster` firing spawns one of these waves on the shared
-timeline (`simulate(..., cast_log=...)` records the casts). The **Spell
-propagation** tab scrubs P(x, t) alongside the circuit, displays A(t) and
-∫|Ψ|²dx live so you can watch the renormalization work, and plots the
-classical blow-up against the finite renormalized total on a log axis.
-`arcane.render.render_wave()` exports the same animation through manim.
+timeline (`simulate(..., cast_log=...)` records the casts; a Caster's
+`wave_range`/`wave_speed`/`wave_width` override the global settings
+per-spell). The **Spell propagation** tab scrubs P alongside the circuit —
+as a 1D curve or, with *2D field* ticked, an animated heatmap — displays
+A(t) and the raw norm live so you can watch the renormalization work, and
+plots the classical blow-up against the finite renormalized total on a log
+axis. `arcane.manim.render` exports the same animations through manim
+(`render_wave` for a wave alone, `render_combined` for circuit + wave on
+one timeline).
 
 The model deliberately keeps the Golden Rule's spirit: it is not a claim
 about real physics, just a self-consistent piece of magic mathematics.
