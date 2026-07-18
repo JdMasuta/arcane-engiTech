@@ -19,11 +19,13 @@ class ThemedCanvas(FigureCanvasQTAgg):
         self.ax.set_facecolor(bg)
         self._style_axes()
 
-    def _style_axes(self):
+    def _style_axes(self, ax=None):
+        ax = ax if ax is not None else self.ax
         muted = "#" + theme.TEXT_MUTED
-        for spine in self.ax.spines.values():
+        ax.set_facecolor(self.figure.get_facecolor())
+        for spine in ax.spines.values():
             spine.set_color("#" + theme.BORDER)
-        self.ax.tick_params(colors=muted, labelsize=8)
-        self.ax.xaxis.label.set_color(muted)
-        self.ax.yaxis.label.set_color(muted)
-        self.ax.title.set_color("#" + theme.TEXT)
+        ax.tick_params(colors=muted, labelsize=8)
+        ax.xaxis.label.set_color(muted)
+        ax.yaxis.label.set_color(muted)
+        ax.title.set_color("#" + theme.TEXT)
